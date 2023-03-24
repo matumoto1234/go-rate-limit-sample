@@ -4,6 +4,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"time"
 
 	"golang.org/x/time/rate"
 )
@@ -24,15 +25,6 @@ func (rlt *RateLimitTransport) transport() http.RoundTripper {
 	return rlt.Transport
 }
 
-func (rlt *RateLimitTransport) CancelRequest(req *http.Request) {
-	type canceler interface {
-		CancelRequest(*http.Request)
-	}
-	if cr, ok := rlt.transport().(canceler); ok {
-		cr.CancelRequest(req)
-	}
-}
-
 func (rlt *RateLimitTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	res, err := rlt.transport().RoundTrip(req)
 
@@ -41,6 +33,15 @@ func (rlt *RateLimitTransport) RoundTrip(req *http.Request) (*http.Response, err
 	}
 
 	return res, err
+}
+
+func (rlt *RateLimitTransport) CancelRequest(req *http.Request) {
+	type canceler interface {
+		CancelRequest(*http.Request)
+	}
+	if cr, ok := rlt.transport().(canceler); ok {
+		cr.CancelRequest(req)
+	}
 }
 
 func NewRateLimitTransport(transport http.RoundTripper, rateLimiter *rate.Limiter) *RateLimitTransport {
@@ -54,12 +55,11 @@ func main() {
 	client := &http.Client{
 		Transport: NewRateLimitTransport(
 			nil,
-			rate.NewLimiter(rate.Every(2), 1), // 1 request every 2 seconds
+			rate.NewLimiter(rate.Every(2 * time.Second), 1), // 1 request every 2 seconds
 		),
 	}
 
-	for i := 0; i < 3; i++ {
-
+	for i := 0; i < 5; i++ {
 		resp, err := client.Get("https://httpbin.org/get")
 		if err != nil {
 			log.Fatal(err)
